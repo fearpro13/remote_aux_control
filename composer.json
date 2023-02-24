@@ -1,0 +1,22 @@
+{
+    "name": "fearpro13/remote_aux_control",
+    "description": "Remote aux control",
+    "type": "project",
+    "autoload": {
+        "psr-4": {
+            "Fearpro13\\RemoteAuxControl\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Ivan Timonin",
+            "email": "fearpro13@gmail.com"
+        }
+    ],
+    "require": {
+        "symfony/console": "^5.4",
+      "ext-curl": "*",
+      "ext-json": "*",
+        "symfony/http-foundation": "^5.4"
+    }
+}

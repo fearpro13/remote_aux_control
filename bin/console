@@ -1,0 +1,24 @@
+#!/usr/bin/env php
+
+<?php
+
+use Fearpro13\RemoteAuxControl\Command\AppInitCommand;
+use Fearpro13\RemoteAuxControl\Command\AppRunCommand;
+use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Output\ConsoleOutput;
+
+require_once __DIR__ . "/../vendor/autoload.php";
+
+const ROOT_DIR = __DIR__;
+
+$app = new Application("RemoteAuxControl", "1.0");
+
+$app->add(new AppInitCommand());
+$app->add(new AppRunCommand());
+
+try {
+    echo $app->run(new ArgvInput(), new ConsoleOutput());
+} catch (Exception $e) {
+    echo $e->getMessage();
+}

@@ -11,10 +11,10 @@ class TelegramUpdate
     /** @var string $firstName */
     private $firstName;
 
-    /** @var string$lastName */
+    /** @var string $lastName */
     private $lastName;
 
-    /** @var string$login */
+    /** @var string $login */
     private $login;
 
     /** @var DateTimeInterface $date */
@@ -29,53 +29,72 @@ class TelegramUpdate
     /** @var bool $isBot */
     private $isBot;
 
+    /** @var int $chatId */
+    private $chatId;
+
+    /** @var string $chatTitle */
+    private $chatTitle;
+
     /**
      * @param Response $response
      * @return TelegramUpdate[]
      */
-    public static function parseAll(Response $response): array
+    public static function parseResponseIntoUpdates(Response $response): array
     {
-        $updates = [];
+        $responseParsed = json_decode($response->getContent() ?: "", true);
 
-        $responseParsed = json_decode($response->getContent() , true);
+        if (!is_array($responseParsed)) {
+            return [];
+        }
 
         $result = $responseParsed['result'] ?? null;
 
-        if (is_array($result)) {
-            foreach ($result as $fullMessage) {
-                $updates[] = self::parse($fullMessage);
+        if (!is_array($result)) {
+            return [];
+        }
+
+        $updates = [];
+
+        foreach ($result as $fullMessage) {
+            $update = self::parseTelegramUpdate($fullMessage);
+
+            if (!is_null($update)) {
+                $updates[] = $update;
             }
         }
 
         return $updates;
     }
 
-    public static function parse(array $updateArray): self
+    public static function parseTelegramUpdate(array $updateArray): ?self
     {
         $update = new self();
 
-        $updateId = $updateArray['update_id'];
-        $message = $updateArray['message'] ?? null;
+        @[
+            'update_id' => $update->id,
+            'message' => $message
+        ] = $updateArray;
 
-        $text = $message['text'] ?? null;
-        $firstName = $message['from']['first_name'] ?? null;
-        $lastName = $message['from']['last_name'] ?? null;
-        $login = $message['from']['username'] ?? null;
-        $isBot = $message['from']['is_bot'] ?? null;
-        $dateTimestamp = $message['date'] ?? null;
+        if(!is_array($message)){
+            return null;
+        }
 
-        $now = new DateTimeImmutable();
-        $date =
-            $now
-                ->setTimestamp($dateTimestamp);
+        @[
+            'text' => $update->text,
+            'from' => [
+                'first_name' => $update->firstName,
+                'last_name' => $update->lastName,
+                'username' => $update->login,
+                'is_bot' => $update->isBot
+            ],
+            'chat' => [
+              'id' => $update->chatId,
+              'title' => $update->chatTitle
+            ],
+            'date' => $dateTimestamp
+        ] = $message;
 
-        $update->firstName = $firstName;
-        $update->lastName = $lastName;
-        $update->login = $login;
-        $update->date = $date;
-        $update->text = $text;
-        $update->id = $updateId;
-        $update->isBot = $isBot;
+        $update->date = (new DateTimeImmutable())->setTimestamp($dateTimestamp);
 
         return $update;
     }
@@ -128,7 +147,18 @@ class TelegramUpdate
         return $this->id;
     }
 
-    public function isBot():bool{
+    public function isBot(): bool
+    {
         return $this->isBot;
+    }
+
+    public function getChatId(): int
+    {
+        return $this->chatId;
+    }
+
+    public function getChatTitle(): string
+    {
+        return $this->chatTitle;
     }
 }

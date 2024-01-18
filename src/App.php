@@ -13,13 +13,29 @@ use Throwable;
 
 class App
 {
-    private $remoteNodeName;
+    public const CONFIG_PATH = ROOT_DIR . "/../config.json";
+    public const TEMP_PATH = ROOT_DIR . "/../command_result.html";
+
+    public const APP_TIME_FORMAT = "Y-m-d H:i:s";
+
+    public const APP_CANT_PREPARE_CONFIG = "Could not prepare config file";
+    public const APP_CANT_SAVE_CONFIG = "Could not save config file";
+
+    public const APP_CONFIG_NULL = "App config is missing or could not be read(Did you run app:init before?)";
+    public const APP_CONFIG_BROKEN = "App config has incorrect format. Consider manual delete of config file and then run app:init";
+    public const APP_CONFIG_MISSING_NAME = "App config is missing 'name' value";
+    public const APP_CONFIG_MISSING_CHAT_ID = "App config is missing 'chat_id' value";
+    public const APP_CONFIG_MISSING_SECRET = "App config is missing 'secret' value";
+
+    public const APP_STOPPED_BY_TG = "App stopped by telegram command";
+    public const APP_PAUSED_BY_TG = "App stopped by telegram command";
+    public const APP_RELOADED = "App reloaded"; //wtf
+
+    private $name;
 
     private $isRunning = true;
 
     private $isPaused = false;
-
-    private $isBooted = false;
 
     private $timeout = 5;
 
@@ -28,66 +44,26 @@ class App
 
     private $interceptionAction;
 
+    /**
+     * @param string $name
+     */
+    public function __construct(string $name)
+    {
+        $this->name = $name;
+    }
+
     public function setOutput(OutputInterface $output): void
     {
         $this->io = $output;
     }
 
-    public function boot(): void
-    {
-        $rootDir = ROOT_DIR;
-        $configFile = "$rootDir/../config.json";
-
-        $config = file_get_contents($configFile);
-
-        if ($config === false) {
-            throw new RuntimeException("Необходима инициализация");
-        }
-
-        $configParsed = json_decode($config, true);
-
-        if (!is_array($configParsed)) {
-            throw new RuntimeException("Некорректный файл конфигурации");
-        }
-
-        $remoteNodeName = $configParsed['node_name'] ?? null;
-        $secret = $configParsed['secret'] ?? null;
-        $chatId = $configParsed['chat_id'] ?? null;
-
-        if (is_null($remoteNodeName)) {
-            throw new RuntimeException("В конфигурации отсутствует имя удалённого узла");
-        }
-
-        if (is_null($secret)) {
-            throw new RuntimeException("В конфигурации отсутствует токен доступа для телеграм API");
-        }
-
-        if (is_null($chatId)) {
-            throw new RuntimeException("В конфигурации отсутствует ID чата");
-        }
-
-        $this->remoteNodeName = $remoteNodeName;
-
-        TelegramBot::setSecret($secret);
-        TelegramBot::setChatId($chatId);
-
-        $this->isBooted = true;
-
-        $this->log("Booted and running well");
-    }
-
     public function run(): int
     {
-        if (!$this->isBooted) {
-            $this->error("Запуск без инициализации");
-            return Command::FAILURE;
-        }
-
         while ($this->isRunning) {
             try {
                 $this->handleUpdates();
             } catch (Throwable $throwable) {
-                $this->error($throwable->getMessage());
+                $this->error($throwable);
                 sleep(5);
             }
 
@@ -95,9 +71,9 @@ class App
                 try {
                     $this->main();
                 } catch (Throwable $throwable) {
-                    $this->error($throwable->getMessage());
+                    $this->error($throwable);
                     if (!($throwable instanceof RuntimeException) && !$this->isPaused) {
-                        $this->error($throwable->getMessage());
+                        $this->error($throwable);
                         $this->isPaused = true;
                     }
                 }
@@ -109,31 +85,32 @@ class App
 
     private function main(): void
     {
-        $this->interruptibleSleep($this->timeout, function () {
+        self::interruptibleSleep($this->timeout, function () {
             $this->handleUpdates();
         });
     }
 
     private function handleUpdates(): void
     {
-        $updates = [];
         try {
             $updates = TelegramBot::askForUpdates();
         } catch (Throwable $throwable) {
-            $this->error($throwable->getMessage());
+            $this->error($throwable);
+
+            return;
         }
 
         $keywords = [
-//            'стоп' => function () {
-//                $this->stop();
-//            },
-            'далее' => function () {
+            'stop' => function () {
+                $this->stop();
+            },
+            'next' => function () {
                 $this->resume();
             },
-            'пауза' => function () {
+            'pause' => function () {
                 $this->pause();
             },
-            'скорость' => function ($message) {
+            'speed' => function ($message) {
                 $words = explode(" ", $message);
                 if (count($words) === 2) {
                     array_shift($words);
@@ -145,14 +122,14 @@ class App
                     }
                 }
             },
-            'команды' => function ($message, $keywords) {
+            'commands' => function ($message, $keywords) {
                 $preparedMessage = "";
                 foreach ($keywords as $keyword => $callback) {
                     $preparedMessage .= $keyword . "\n";
                 }
                 $this->log($preparedMessage);
             },
-            'запуск' => function ($message) {
+            'run' => function ($message) {
                 $words = explode(" ", $message);
                 if (count($words) > 1) {
                     array_shift($words);
@@ -165,11 +142,11 @@ class App
                     $this->runDetachedCommand($commandPath);
                 }
             },
-            'ребут' => function () {
+            'reboot' => function () {
                 $rebootCommand = "shutdown -r";
                 $this->runCommand($rebootCommand);
             },
-            'вывод' => function ($message) {
+            'output' => function ($message) {
                 $words = explode(" ", $message);
                 if (count($words) > 1) {
                     array_shift($words);
@@ -187,11 +164,11 @@ class App
         $this->printTelegramMessages($updates);
 
         foreach ($updates as $update) {
-            $message = mb_strtolower(trim($update->getText()));
-
             if ($update->isBot()) {
                 continue;
             }
+
+            $message = mb_strtolower(trim($update->getText()));
 
             foreach ($keywords as $keyword => $callback) {
                 if (mb_stripos($message, $keyword) !== false) {
@@ -207,7 +184,7 @@ class App
         $this->isRunning = false;
 
         $this->interceptionAction = function () {
-            $this->stopProcess("STOPPED");
+            $this->stopProcess(self::APP_STOPPED_BY_TG);
         };
 
         $action = $this->interceptionAction;
@@ -222,7 +199,7 @@ class App
         $this->isPaused = true;
 
         $this->interceptionAction = function () {
-            $this->stopProcess("PAUSED");
+            $this->stopProcess(self::APP_PAUSED_BY_TG);
         };
 
         $action = $this->interceptionAction;
@@ -240,7 +217,7 @@ class App
     private function reload(): void
     {
         $this->interceptionAction = function () {
-            $this->stopProcess("RELOADED");
+            $this->stopProcess(self::APP_RELOADED);
         };
 
         $action = $this->interceptionAction;
@@ -250,7 +227,7 @@ class App
         }
     }
 
-    private function interruptibleSleep(int $seconds, callable $interruptor): void
+    private static function interruptibleSleep(int $seconds, callable $interruptor): void
     {
         $step = 2;
 
@@ -280,37 +257,32 @@ class App
 
         $returnCode = proc_close($pd);
 
-        $rootDir = ROOT_DIR;
-
-        $tempFile = "$rootDir/command_result.html";
-
-        unlink($tempFile);
         $commandOutput = str_replace("\n", "<br>", $commandOutput);
-        file_put_contents($tempFile, $commandOutput, FILE_APPEND);
+        $bytesWritten = file_put_contents(self::TEMP_PATH, $commandOutput);
 
-        $document = new CURLFile($tempFile);
-        TelegramBot::sendDocument($document, $commandPath);
+        if (!$bytesWritten) {
+            return Command::FAILURE;
+        }
 
-        unlink($tempFile);
+        $document = new CURLFile(self::TEMP_PATH);
+
+        TelegramBot::sendDocument($document, "{$this->getNodeName()}: $commandPath");
 
         return $returnCode;
     }
 
     public function runDetachedCommand(string $commandPath): void
     {
-        $returnCode = null;
-        $output = [];
-
         $this->log("Running detached: $commandPath");
 
         $commandPath = "nohup $commandPath &";
 
-        exec($commandPath, $output, $returnCode);
+        exec($commandPath);
     }
 
     public function getNodeName(): string
     {
-        return $this->remoteNodeName;
+        return $this->name;
     }
 
     public function log(string $message): void
@@ -318,7 +290,7 @@ class App
         $now = new DateTimeImmutable();
         $nodeName = $this->getNodeName();
 
-        $nowFormatted = $now->format("Y-m-d H:i:s");
+        $nowFormatted = $now->format(self::APP_TIME_FORMAT);
 
         $messageFormatted = "$nodeName\n$nowFormatted\n\n$message";
 
@@ -328,11 +300,11 @@ class App
     private function error(string $message): void
     {
         $now = new DateTimeImmutable();
-        $nodeName = $this->isBooted ? $this->getNodeName() : "UNKNOWN NODE";
+        $name = $this->getNodeName();
 
-        $nowFormatted = $now->format("Y-m-d H:i:s");
+        $nowFormatted = $now->format(self::APP_TIME_FORMAT);
 
-        $messageFormatted = "$nodeName\n$nowFormatted\n\nОшибка\n$message";
+        $messageFormatted = "$name\n$nowFormatted\n\nError:\n$message";
 
         $this->out($messageFormatted);
     }
@@ -369,9 +341,12 @@ class App
             $login = $update->getLogin();
 
             $date = $update->getDate();
-            $dateFormatted = is_null($date) ? "UNKNOWN DATE" : $date->format("Y-m-d H:i:s");
+            $dateFormatted = is_null($date) ? "UNKNOWN DATE" : $date->format(self::APP_TIME_FORMAT);
 
-            $messageFormatted = "[$dateFormatted] [$lastName, $firstName, @$login]: $text";
+            $chatId = $update->getChatId();
+            $chatTitle = $update->getChatTitle();
+
+            $messageFormatted = "[$dateFormatted][$chatId,$chatTitle][$lastName, $firstName, @$login]: $text";
             $this->out($messageFormatted);
         }
     }

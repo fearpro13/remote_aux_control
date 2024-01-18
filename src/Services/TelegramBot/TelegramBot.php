@@ -5,7 +5,6 @@ namespace Fearpro13\RemoteAuxControl\Services\TelegramBot;
 use Exception;
 use RuntimeException;
 use Symfony\Component\Console\Output\NullOutput;
-use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 class TelegramBot extends NullOutput
@@ -20,9 +19,9 @@ class TelegramBot extends NullOutput
 
     private const UPDATE_DELAY = 2;
 
-    public static function info($message):array
+    public static function info($message):void
     {
-        return self::sendMessage($message);
+        self::sendMessage($message);
     }
 
     public function writeln($messages, int $options = self::OUTPUT_NORMAL):void
@@ -42,9 +41,9 @@ class TelegramBot extends NullOutput
     /**
      * Отправка сообщения на Telegram API
      * @param string $message
-     * @return array
+     * @return void
      */
-    private static function sendMessage(string $message):array
+    private static function sendMessage(string $message):void
     {
         $chatId = self::$chatId;
 
@@ -74,22 +73,13 @@ class TelegramBot extends NullOutput
 
             curl_setopt_array($ch, $options);
 
-            $response = curl_exec($ch);
-            $code = curl_getinfo($ch)['http_code'];
-
-            return [
-                'code' => $code,
-                'response' => $response
-            ];
+            Browser::request($ch,"POST");
         } catch (Exception $exception) {
-            return [
-                'code' => -1,
-                'response' => 'Telegram bot failure'
-            ];
+            //noop
         }
     }
 
-    public static function sendDocument($documentPath ,string $caption): ?Response
+    public static function sendDocument($documentPath ,string $caption): void
     {
         $chatId = self::$chatId;
 
@@ -121,9 +111,9 @@ class TelegramBot extends NullOutput
 
             curl_setopt_array($ch , $options);
 
-            return Browser::request($ch , 'POST');
+            Browser::request($ch , 'POST');
         } catch (Throwable $throwable) {
-            return new Response($throwable->getMessage() . $throwable->getFile() . $throwable->getLine() , 500);
+            //noop
         }
     }
 
@@ -179,7 +169,7 @@ class TelegramBot extends NullOutput
                 throw new RuntimeException($message);
             }
 
-            $updates = TelegramUpdate::parseAll($response);
+            $updates = TelegramUpdate::parseResponseIntoUpdates($response);
 
             if (!is_null(self::$lastUpdateId)) {
                 $updates = array_filter($updates, static function (TelegramUpdate $update) {

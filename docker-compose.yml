@@ -1,0 +1,10 @@
+version: "3.5"
+services:
+  php:
+    build: ./
+    volumes:
+      - "./:/app"
+    environment:
+      - NAME=node0
+      - SECRET=sus
+      - CHAT_ID=300400

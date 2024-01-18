@@ -3,6 +3,7 @@
 namespace Fearpro13\RemoteAuxControl\Services\TelegramBot;
 
 use DateTimeImmutable;
+use Fearpro13\RemoteAuxControl\App;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -13,17 +14,14 @@ class Browser
 
     public static function request($ch , string $method = 'GET'): ?Response
     {
-        $before = microtime(true);
-
         $responseBody = curl_exec($ch);
         $responseCode = curl_getinfo($ch , CURLINFO_HTTP_CODE);
 
-        //$diff = microtime(true) - $before;
         $diff = curl_getinfo($ch,CURLINFO_TOTAL_TIME);
         $diffFormatted = round($diff , 2);
 
         $now = new DateTimeImmutable();
-        $nowFormatted = $now->format("Y-m-d H:i:s");
+        $nowFormatted = $now->format(App::APP_TIME_FORMAT);
         $url = curl_getinfo($ch , CURLINFO_EFFECTIVE_URL);
 
         $speed = curl_getinfo($ch , CURLINFO_SPEED_DOWNLOAD);

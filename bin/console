@@ -12,13 +12,14 @@ require_once __DIR__ . "/../vendor/autoload.php";
 
 const ROOT_DIR = __DIR__;
 
-$app = new Application("RemoteAuxControl", "1.0");
+$app = new Application("RemoteAuxControl", "1.0.1");
 
 $app->add(new AppInitCommand());
 $app->add(new AppRunCommand());
 
 try {
-    echo $app->run(new ArgvInput(), new ConsoleOutput());
+    exit($app->run(new ArgvInput(), new ConsoleOutput()));
 } catch (Exception $e) {
     echo $e->getMessage();
+    exit(1);
 }

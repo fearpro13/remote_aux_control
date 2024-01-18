@@ -1,14 +1,20 @@
 # remote_aux_control
-Удалённое управление системой, используя telegram api
 
-## Для получения обновлений бота используется getUpdates вместо webHook
+## Remote system control from telegram chat
 
-1. composer i
+## Setup
 
+### docker-compose:
 
-2. php ./bin/console app:init <system_name> <telegram_bot_secret_key> <telegram_chat_id>
+1. change environment variables(NAME, SECRET, CHAT_ID) in docker-compose.yml
+2. `docker compose up`
 
-#### Если telegram_chat_id содержит дефис(-), его необходимо заменить на нижнее подчёркивание(_)
+### native:
 
-
-3. php ./bin/console app:run
+1. `composer i`
+   > WARNING  
+   Rule applies for all arguments!  
+   If first symbol is hyphen(-) - it must be replaced with underscore(_)  
+   e.g. if telegram_chat_id is -300400500600 then it should be entered as _300400500600
+2. `php ./bin/console app:init <system_name> <telegram_bot_secret_key> <telegram_chat_id>`
+3. `php ./bin/console app:run`
